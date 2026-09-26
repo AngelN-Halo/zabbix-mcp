@@ -1,0 +1,10 @@
+# Example OpenAPI bridge using a pinned Open WebUI MCPO image.
+# Verify the image digest and compatibility for your own deployment.
+FROM ghcr.io/open-webui/mcpo@sha256:1e82c9555c19e50b80745705f32b47a2647589f35279527b5118ecd3a71bd467
+
+ENV HOME=/tmp
+
+RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin mcpo
+
+USER mcpo
+ENTRYPOINT ["mcpo"]

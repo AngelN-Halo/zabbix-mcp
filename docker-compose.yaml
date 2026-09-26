@@ -1,0 +1,71 @@
+services:
+  zabbix-mcp:
+    build: .
+    image: zabbix-readonly-mcp:0.1.0
+    # Keep the upstream credentials in a dedicated, host-local protected file.
+    env_file:
+      - .env.upstream
+    environment:
+      ZABBIX_REQUEST_TIMEOUT: ${ZABBIX_REQUEST_TIMEOUT:-15}
+      ZABBIX_CACHE_SECONDS: ${ZABBIX_CACHE_SECONDS:-30}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-127.0.0.1,127.0.0.1:*,localhost,localhost:*,zabbix-mcp,zabbix-mcp:*}
+    ports:
+      - "127.0.0.1:${ZABBIX_MCP_PORT:-8300}:8000"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  zabbix-openapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.openapi
+    image: zabbix-readonly-openapi:0.1.0
+    command:
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --api-key
+      - ${MCPO_API_KEY:?Set MCPO_API_KEY in local .env}
+      - --server-type
+      - streamable-http
+      - --
+      - http://zabbix-mcp:8000/mcp
+    depends_on:
+      zabbix-mcp:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${ZABBIX_OPENAPI_PORT:-8301}:8000"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import socket; socket.create_connection(('127.0.0.1', 8000), timeout=3).close()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
